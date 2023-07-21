@@ -65,8 +65,8 @@ Solution selectiveRouteExchange(
  * vehicle type. Start indices are optimized per vehicle type as well.
  *
  * Since a single vehicle type may have different sets of customers assigned in
- * both parents, the greedy repair phase is not done pervehicle type but at the
- * end over all routes.
+ * both parents, the greedy repair phase is not done per vehicle type but at
+ * the end over all routes.
  *
  * @param parents                        The parent solutions.
  * @param data                           The problem data.

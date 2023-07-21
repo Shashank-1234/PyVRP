@@ -388,7 +388,7 @@ Solution heterogeneousSelectiveRouteExchange(
         while (endA != routesA.end() && endA->vehicleType() <= vehType)
             endA++;
 
-        // Find range of routes with this vehicle type for first parent
+        // Find range of routes with this vehicle type for second parent
         while (beginB != routesB.end() && beginB->vehicleType() < vehType)
             beginB++;
         auto endB = beginB;
@@ -406,7 +406,7 @@ Solution heterogeneousSelectiveRouteExchange(
             if (typeRoutesA.size() < numMovedRoutes
                 || typeRoutesB.size() < numMovedRoutes)
             {
-                auto msg = "Expected numMovedRoutes in [0, min(nRoutes, "
+                auto msg = "Expected numMovedRoutes in [0, min(nRoutesA, "
                            "nRoutesB)] for each vehicle type.";
                 throw std::invalid_argument(msg);
             }

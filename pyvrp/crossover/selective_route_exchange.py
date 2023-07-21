@@ -95,8 +95,8 @@ def heterogeneous_selective_route_exchange(
     vehicle type. Start indices are optimized per vehicle type as well.
 
     Since a single vehicle type may have different sets of customers assigned
-    in both parents, the greedy repair phase is not done pervehicle type but at
-    the end over all routes.
+    in both parents, the greedy repair phase is not done per vehicle type but
+    at the end over all routes.
 
     Parameters
     ----------
@@ -122,15 +122,22 @@ def heterogeneous_selective_route_exchange(
            536 - 545.
     """
     first, second = parents
+    num_routes_1 = np.bincount(
+        (r.vehicle_type() for r in first.get_routes()),
+        minlength=data.num_vehicle_types,
+    )
+    num_routes_2 = np.bincount(
+        (r.vehicle_type() for r in second.get_routes()),
+        minlength=data.num_vehicle_types,
+    )
+    max_routes_to_move = np.minimum(num_routes_1, num_routes_2)
 
-    num_routes_1 = np.bincount(r.vehicle_type() for r in first.get_routes())
-    num_routes_2 = np.bincount(r.vehicle_type() for r in first.get_routes())
-    max_routes_to_move = np.maximum(num_routes_1, num_routes_2)
-
-    start_indices = [rng.randint(num_r) for num_r in num_routes_1]
     num_routes_to_move = [
         0 if max_r == 0 else rng.randint(max_r) + 1
         for max_r in max_routes_to_move
+    ]
+    start_indices = [
+        0 if num_r == 0 else rng.randint(num_r) for num_r in num_routes_1
     ]
 
     return _heterogeneous_srex(
