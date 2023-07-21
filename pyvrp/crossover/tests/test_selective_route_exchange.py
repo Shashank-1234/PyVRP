@@ -6,11 +6,9 @@ from pytest import mark
 from pyvrp import CostEvaluator, Route, Solution, VehicleType, XorShift128
 from pyvrp.crossover import selective_route_exchange as srex
 from pyvrp.crossover._crossover import (
-    heterogeneous_selective_route_exchange as ccp_heterogeneous_srex,
+    heterogeneous_selective_route_exchange as cpp_heterogeneous_srex,
 )
-from pyvrp.crossover._crossover import (
-    selective_route_exchange as cpp_srex,
-)
+from pyvrp.crossover._crossover import selective_route_exchange as cpp_srex
 from pyvrp.tests.helpers import make_heterogeneous, read
 
 
@@ -373,19 +371,19 @@ def test_heterogeneous_srex_greedy_repair():
 
     sol2_homogeneous = Solution(data, [[2, 3], [4, 1]])
     # This is ok, only exchange between type 0
-    ccp_heterogeneous_srex(
+    cpp_heterogeneous_srex(
         (sol1, sol2_homogeneous), data, cost_evaluator, [0, 0], [1, 0]
     )
     with assert_raises(ValueError):
         # This is not as we don't have type 1 in both
-        ccp_heterogeneous_srex(
+        cpp_heterogeneous_srex(
             (sol1, sol2_homogeneous), data, cost_evaluator, [0, 0], [0, 1]
         )
 
     # Exchange only route for type 0, [3, 4] is replaced for [2, 3], but 2 is
     # already in the second route, so before repair we get options [2, 3], [1]
     # [3], [1, 2]. After repair by inserting 4, we get [2, 3, 4], [1] as best.
-    offspring = ccp_heterogeneous_srex(
+    offspring = cpp_heterogeneous_srex(
         (sol1, sol2), data, cost_evaluator, [0, 0], [1, 0]
     )
     routes = offspring.get_routes()
@@ -398,7 +396,7 @@ def test_heterogeneous_srex_greedy_repair():
     # Exchange only route for type 1, [1, 2] is replaced for [4, 1], but 4 is
     # already in the first route, so before repair we get options [3, 4], [1]
     # [3], [4, 1]. After repair by inserting 2, we get [2, 3, 4], [1] as best.
-    offspring = ccp_heterogeneous_srex(
+    offspring = cpp_heterogeneous_srex(
         (sol1, sol2), data, cost_evaluator, [0, 0], [0, 1]
     )
     routes = offspring.get_routes()
@@ -409,14 +407,14 @@ def test_heterogeneous_srex_greedy_repair():
     assert_equal(routes[1].vehicle_type(), 1)
 
     # Exchange no routes will simply result in the first parent
-    offspring = ccp_heterogeneous_srex(
+    offspring = cpp_heterogeneous_srex(
         (sol1, sol2), data, cost_evaluator, [0, 0], [0, 0]
     )
     routes = offspring.get_routes()
     assert_equal(offspring, sol1)
 
     # Exchange both routes will simply result in the second parent
-    offspring = ccp_heterogeneous_srex(
+    offspring = cpp_heterogeneous_srex(
         (sol1, sol2), data, cost_evaluator, [0, 0], [1, 1]
     )
     routes = offspring.get_routes()

@@ -9,10 +9,6 @@ using Clients = std::vector<Client>;
 using Route = pyvrp::Solution::Route;
 using Routes = std::vector<Route>;
 
-// TODO get rid of these?
-using DynamicBitset = pyvrp::DynamicBitset;
-using CostEvaluator = pyvrp::CostEvaluator;
-
 namespace
 {
 // Angle of the given route w.r.t. the centroid of all client locations.
@@ -44,7 +40,6 @@ Routes sortByAscAngle(pyvrp::ProblemData const &data,
     std::sort(routes.begin(), routes.end(), cmp);
     return routes;
 }
-}  // namespace
 
 bool isValidAssignment_(pyvrp::ProblemData const &data,
                         std::vector<size_t> const &usedVehicles)
@@ -113,10 +108,10 @@ std::vector<size_t> assignVehicles_(pyvrp::ProblemData const &data,
 pyvrp::Solution routeExchange_(pyvrp::ProblemData const &data,
                                Routes const &routesA,
                                Routes const &routesB,
-                               CostEvaluator const &costEvaluator,
+                               pyvrp::CostEvaluator const &costEvaluator,
                                std::vector<int> const &exchanges,
-                               DynamicBitset const &selectedA,
-                               DynamicBitset const &selectedB)
+                               pyvrp::DynamicBitset const &selectedA,
+                               pyvrp::DynamicBitset const &selectedB)
 {
     // Exchanges is a vector where exchanges[i] = j means that route i
     // from parent A is exchanged with route j from parent B unless j = -1
@@ -209,21 +204,21 @@ pyvrp::Solution routeExchange_(pyvrp::ProblemData const &data,
 pyvrp::Solution routeExchange_(pyvrp::ProblemData const &data,
                                Routes const &routesA,
                                Routes const &routesB,
-                               CostEvaluator const &costEvaluator,
+                               pyvrp::CostEvaluator const &costEvaluator,
                                std::vector<int> const &exchanges)
 {
-    DynamicBitset selectedA(data.numClients() + 1);
-    DynamicBitset selectedB(data.numClients() + 1);
+    pyvrp::DynamicBitset selectedA(data.numClients() + 1);
+    pyvrp::DynamicBitset selectedB(data.numClients() + 1);
 
     // Determine clients in routes involved in exchange
     for (size_t r = 0; r < routesA.size(); r++)
         if (exchanges[r] >= 0)
         {
-            // auto const &routeA = routesA[r];
-            // selectedA.insert(routeA.begin(), routeA.end());
+            for (Client c : routesA[r])
+                selectedA[c] = true;
 
-            // auto const &routeB = routesB[exchanges[r]];
-            // selectedB.insert(routeB.begin(), routeB.end());
+            for (Client c : routesB[exchanges[r]])
+                selectedB[c] = true;
         }
     return routeExchange_(
         data, routesA, routesB, costEvaluator, exchanges, selectedA, selectedB);
@@ -234,8 +229,8 @@ std::pair<size_t, size_t> optimizeStartIndices_(Routes const &routesA,
                                                 size_t startA,
                                                 size_t startB,
                                                 size_t numMovedRoutes,
-                                                DynamicBitset &selectedA,
-                                                DynamicBitset &selectedB)
+                                                pyvrp::DynamicBitset &selectedA,
+                                                pyvrp::DynamicBitset &selectedB)
 {
     size_t nRoutesA = routesA.size();
     size_t nRoutesB = routesB.size();
@@ -350,11 +345,12 @@ std::pair<size_t, size_t> optimizeStartIndices_(Routes const &routesA,
     }
     return std::make_pair(startA, startB);
 }
+}  // namespace
 
-pyvrp::Solution heterogeneousSelectiveRouteExchange(
-    std::pair<pyvrp::Solution const *, pyvrp::Solution const *> const &parents,
-    pyvrp::ProblemData const &data,
-    CostEvaluator const &costEvaluator,
+pyvrp::Solution pyvrp::crossover::heterogeneousSelectiveRouteExchange(
+    std::pair<Solution const *, Solution const *> const &parents,
+    ProblemData const &data,
+    pyvrp::CostEvaluator const &costEvaluator,
     std::vector<size_t> const startIndicesPerVehicleType,
     std::vector<size_t> const numMovedRoutesPerVehicleType)
 {
@@ -366,9 +362,9 @@ pyvrp::Solution heterogeneousSelectiveRouteExchange(
     auto const routesB
         = sortByAscAngle(data, parents.second->getRoutes(), true);
 
-    DynamicBitset selectedA(data.numClients() + 1);
+    pyvrp::DynamicBitset selectedA(data.numClients() + 1);
     ;
-    DynamicBitset selectedB(data.numClients() + 1);
+    pyvrp::DynamicBitset selectedB(data.numClients() + 1);
     ;
     // // Vector to keep track of which routes to exchange, initialize at -1.
     std::vector<int> exchanges(routesA.size(), -1);
@@ -440,10 +436,10 @@ pyvrp::Solution heterogeneousSelectiveRouteExchange(
         data, routesA, routesB, costEvaluator, exchanges, selectedA, selectedB);
 }
 
-pyvrp::Solution selectiveRouteExchange(
-    std::pair<pyvrp::Solution const *, pyvrp::Solution const *> const &parents,
-    pyvrp::ProblemData const &data,
-    CostEvaluator const &costEvaluator,
+pyvrp::Solution pyvrp::crossover::selectiveRouteExchange(
+    std::pair<Solution const *, Solution const *> const &parents,
+    ProblemData const &data,
+    pyvrp::CostEvaluator const &costEvaluator,
     std::pair<size_t, size_t> const startIndices,
     size_t const numMovedRoutes)
 {
@@ -457,8 +453,8 @@ pyvrp::Solution selectiveRouteExchange(
     auto const nRoutes = routesA.size();
     auto const nRoutesB = routesB.size();
 
-    DynamicBitset selectedA(data.numClients() + 1);
-    DynamicBitset selectedB(data.numClients() + 1);
+    pyvrp::DynamicBitset selectedA(data.numClients() + 1);
+    pyvrp::DynamicBitset selectedB(data.numClients() + 1);
     auto [startA, startB] = optimizeStartIndices_(routesA,
                                                   routesB,
                                                   startIndices.first,
@@ -475,10 +471,10 @@ pyvrp::Solution selectiveRouteExchange(
     return routeExchange_(data, routesA, routesB, costEvaluator, exchanges);
 }
 
-pyvrp::Solution routeExchange(
-    std::pair<pyvrp::Solution const *, pyvrp::Solution const *> const &parents,
-    pyvrp::ProblemData const &data,
-    CostEvaluator const &costEvaluator,
+pyvrp::Solution pyvrp::crossover::routeExchange(
+    std::pair<Solution const *, Solution const *> const &parents,
+    ProblemData const &data,
+    pyvrp::CostEvaluator const &costEvaluator,
     std::vector<int> const &exchanges)
 {
     // Performs route exchange given an externally provided set of exchanges.
