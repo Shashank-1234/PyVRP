@@ -2,6 +2,7 @@
 #define PYVRP_CROSSOVER_H
 
 #include "CostEvaluator.h"
+#include "DynamicBitset.h"
 #include "ProblemData.h"
 #include "Solution.h"
 #include "XorShift128.h"
@@ -9,17 +10,16 @@
 #include <functional>
 #include <vector>
 
-namespace crossover
+namespace pyvrp::crossover
 {
 /**
  * Greedily inserts each unplanned client into the route that's nearest to the
  * client.
  */
 void greedyRepair(std::vector<std::vector<int>> &routes,
-                  std::vector<int> const &unplanned,
+                  DynamicBitset const &unplanned,
                   ProblemData const &data,
                   CostEvaluator const &costEvaluator);
-}  // namespace crossover
 
 /**
  * Performs two SREX crossovers of the given parents. SREX is a method that
@@ -45,11 +45,8 @@ void greedyRepair(std::vector<std::vector<int>> &routes,
  * @param numMovedRoutes   Number of routes to move.
  * @return A new offspring.
  *
- * <br />
- * Yuichi Nagata and Shigenobu Kobayashi. "A memetic algorithm for
- * the pickup and delivery problem with time windows using selective route
- * exchange crossover". In: International Conference on Parallel Problem Solving
- * from Nature. Springer. 2010, pp. 536–545.
+ * Note that this is an internal docstring: the SREX operator is wrapped on
+ * the Python side.
  */
 Solution selectiveRouteExchange(
     std::pair<Solution const *, Solution const *> const &parents,
@@ -99,5 +96,6 @@ routeExchange(std::pair<Solution const *, Solution const *> const &parents,
               ProblemData const &data,
               CostEvaluator const &costEvaluator,
               std::vector<int> const &exchanges);
+}  // namespace pyvrp::crossover
 
 #endif  // PYVRP_CROSSOVER_H

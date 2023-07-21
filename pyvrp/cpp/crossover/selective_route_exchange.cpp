@@ -1,19 +1,22 @@
 #include "crossover.h"
 
-#include <cassert>
+#include "DynamicBitset.h"
+
 #include <cmath>
-#include <unordered_set>
 
 using Client = int;
 using Clients = std::vector<Client>;
-using ClientSet = std::unordered_set<Client>;
-using Route = Solution::Route;
+using Route = pyvrp::Solution::Route;
 using Routes = std::vector<Route>;
+
+// TODO get rid of these?
+using DynamicBitset = pyvrp::DynamicBitset;
+using CostEvaluator = pyvrp::CostEvaluator;
 
 namespace
 {
 // Angle of the given route w.r.t. the centroid of all client locations.
-double routeAngle(ProblemData const &data, Route const &route)
+double routeAngle(pyvrp::ProblemData const &data, Route const &route)
 {
     // This computes a pseudo-angle that sorts roughly equivalently to the atan2
     // angle, but is much faster to compute. See the following post for details:
@@ -25,7 +28,7 @@ double routeAngle(ProblemData const &data, Route const &route)
     return std::copysign(1. - dx / (std::fabs(dx) + std::fabs(dy)), dy);
 }
 
-Routes sortByAscAngle(ProblemData const &data,
+Routes sortByAscAngle(pyvrp::ProblemData const &data,
                       Routes routes,
                       bool perVehicleType = false)
 {
@@ -43,7 +46,7 @@ Routes sortByAscAngle(ProblemData const &data,
 }
 }  // namespace
 
-bool isValidAssignment_(ProblemData const &data,
+bool isValidAssignment_(pyvrp::ProblemData const &data,
                         std::vector<size_t> const &usedVehicles)
 {
     for (size_t typeIdx = 0; typeIdx < data.numVehicleTypes(); typeIdx++)
@@ -52,7 +55,7 @@ bool isValidAssignment_(ProblemData const &data,
     return true;
 }
 
-std::vector<size_t> assignVehicles_(ProblemData const &data,
+std::vector<size_t> assignVehicles_(pyvrp::ProblemData const &data,
                                     Routes const &routesA,
                                     Routes const &routesB,
                                     std::vector<int> const &exchanges,
@@ -107,13 +110,13 @@ std::vector<size_t> assignVehicles_(ProblemData const &data,
     return assignments;
 }
 
-Solution routeExchange_(ProblemData const &data,
-                        Routes const &routesA,
-                        Routes const &routesB,
-                        CostEvaluator const &costEvaluator,
-                        std::vector<int> const &exchanges,
-                        ClientSet const &selectedA,
-                        ClientSet const &selectedB)
+pyvrp::Solution routeExchange_(pyvrp::ProblemData const &data,
+                               Routes const &routesA,
+                               Routes const &routesB,
+                               CostEvaluator const &costEvaluator,
+                               std::vector<int> const &exchanges,
+                               DynamicBitset const &selectedA,
+                               DynamicBitset const &selectedB)
 {
     // Exchanges is a vector where exchanges[i] = j means that route i
     // from parent A is exchanged with route j from parent B unless j = -1
@@ -136,10 +139,7 @@ Solution routeExchange_(ProblemData const &data,
     auto const nRoutes = routesA.size();
 
     // Identify differences between route sets
-    ClientSet clientsInSelectedBNotA;
-    for (Client c : selectedB)
-        if (!selectedA.contains(c))
-            clientsInSelectedBNotA.insert(c);
+    auto const selectedBNotA = selectedB & ~selectedA;
 
     std::vector<Clients> visits1(nRoutes);
     std::vector<Clients> visits2(nRoutes);
@@ -154,7 +154,7 @@ Solution routeExchange_(ProblemData const &data,
             {
                 visits1[r].push_back(c);  // c in B
 
-                if (!clientsInSelectedBNotA.contains(c))
+                if (!selectedBNotA[c])
                     visits2[r].push_back(c);  // c in A^B
             }
         }
@@ -163,7 +163,7 @@ Solution routeExchange_(ProblemData const &data,
             // Move routes from parent A that are kept
             for (Client c : routesA[r])
             {
-                if (!clientsInSelectedBNotA.contains(c))
+                if (!selectedBNotA[c])
                     visits1[r].push_back(c);  // c in Ac\B
 
                 visits2[r].push_back(c);  // c in Ac
@@ -173,18 +173,14 @@ Solution routeExchange_(ProblemData const &data,
 
     // Insert unplanned clients (those that were in the removed routes of A, but
     // not the inserted routes of B).
-    Clients unplanned;
-    for (Client c : selectedA)
-        if (!selectedB.contains(c))
-            unplanned.push_back(c);
-
-    crossover::greedyRepair(visits1, unplanned, data, costEvaluator);
-    crossover::greedyRepair(visits2, unplanned, data, costEvaluator);
+    auto const unplanned = selectedA & ~selectedB;
+    pyvrp::crossover::greedyRepair(visits1, unplanned, data, costEvaluator);
+    pyvrp::crossover::greedyRepair(visits2, unplanned, data, costEvaluator);
 
     // Assign correct types to routes (from parents) and filter empty
-    std::vector<Solution::Route> routes1;
+    std::vector<pyvrp::Solution::Route> routes1;
     routes1.reserve(nRoutes);
-    std::vector<Solution::Route> routes2;
+    std::vector<pyvrp::Solution::Route> routes2;
     routes2.reserve(nRoutes);
 
     // Vehicles get assigned the types of the original routes, but after
@@ -197,36 +193,37 @@ Solution routeExchange_(ProblemData const &data,
     {
         if (!visits1[r].empty())
             routes1.emplace_back(data, visits1[r], vehicleTypes1[r]);
+
         if (!visits2[r].empty())
             routes2.emplace_back(data, visits2[r], vehicleTypes2[r]);
     }
 
-    Solution sol1{data, routes1};
-    Solution sol2{data, routes2};
+    pyvrp::Solution sol1{data, routes1};
+    pyvrp::Solution sol2{data, routes2};
 
     auto const cost1 = costEvaluator.penalisedCost(sol1);
     auto const cost2 = costEvaluator.penalisedCost(sol2);
     return cost1 < cost2 ? sol1 : sol2;
 }
 
-Solution routeExchange_(ProblemData const &data,
-                        Routes const &routesA,
-                        Routes const &routesB,
-                        CostEvaluator const &costEvaluator,
-                        std::vector<int> const &exchanges)
+pyvrp::Solution routeExchange_(pyvrp::ProblemData const &data,
+                               Routes const &routesA,
+                               Routes const &routesB,
+                               CostEvaluator const &costEvaluator,
+                               std::vector<int> const &exchanges)
 {
-    ClientSet selectedA;
-    ClientSet selectedB;
+    DynamicBitset selectedA(data.numClients() + 1);
+    DynamicBitset selectedB(data.numClients() + 1);
 
     // Determine clients in routes involved in exchange
     for (size_t r = 0; r < routesA.size(); r++)
         if (exchanges[r] >= 0)
         {
-            auto const &routeA = routesA[r];
-            selectedA.insert(routeA.begin(), routeA.end());
+            // auto const &routeA = routesA[r];
+            // selectedA.insert(routeA.begin(), routeA.end());
 
-            auto const &routeB = routesB[exchanges[r]];
-            selectedB.insert(routeB.begin(), routeB.end());
+            // auto const &routeB = routesB[exchanges[r]];
+            // selectedB.insert(routeB.begin(), routeB.end());
         }
     return routeExchange_(
         data, routesA, routesB, costEvaluator, exchanges, selectedA, selectedB);
@@ -237,8 +234,8 @@ std::pair<size_t, size_t> optimizeStartIndices_(Routes const &routesA,
                                                 size_t startA,
                                                 size_t startB,
                                                 size_t numMovedRoutes,
-                                                ClientSet &selectedA,
-                                                ClientSet &selectedB)
+                                                DynamicBitset &selectedA,
+                                                DynamicBitset &selectedB)
 {
     size_t nRoutesA = routesA.size();
     size_t nRoutesB = routesB.size();
@@ -260,11 +257,11 @@ std::pair<size_t, size_t> optimizeStartIndices_(Routes const &routesA,
     // close to each other.
     for (size_t r = 0; r < numMovedRoutes; r++)
     {
-        auto const &routeA = routesA[(startA + r) % nRoutesA];
-        selectedA.insert(routeA.begin(), routeA.end());
+        for (Client c : routesA[(startA + r) % nRoutesA])
+            selectedA[c] = true;
 
-        auto const &routeB = routesB[(startB + r) % nRoutesB];
-        selectedB.insert(routeB.begin(), routeB.end());
+        for (Client c : routesB[(startB + r) % nRoutesB])
+            selectedB[c] = true;
     }
 
     // For the selection, we want to minimize |A\B| as these need replanning
@@ -274,37 +271,37 @@ std::pair<size_t, size_t> optimizeStartIndices_(Routes const &routesA,
         int differenceALeft = 0;
 
         for (Client c : routesA[(startA - 1 + nRoutesA) % nRoutesA])
-            differenceALeft += !selectedB.contains(c);
+            differenceALeft += !selectedB[c];
 
         for (Client c : routesA[(startA + numMovedRoutes - 1) % nRoutesA])
-            differenceALeft -= !selectedB.contains(c);
+            differenceALeft -= !selectedB[c];
 
         // Difference for moving 'right' in parent A
         int differenceARight = 0;
 
         for (Client c : routesA[(startA + numMovedRoutes) % nRoutesA])
-            differenceARight += !selectedB.contains(c);
+            differenceARight += !selectedB[c];
 
         for (Client c : routesA[startA])
-            differenceARight -= !selectedB.contains(c);
+            differenceARight -= !selectedB[c];
 
         // Difference for moving 'left' in parent B
         int differenceBLeft = 0;
 
         for (Client c : routesB[(startB - 1 + numMovedRoutes) % nRoutesB])
-            differenceBLeft += selectedA.contains(c);
+            differenceBLeft += selectedA[c];
 
         for (Client c : routesB[(startB - 1 + nRoutesB) % nRoutesB])
-            differenceBLeft -= selectedA.contains(c);
+            differenceBLeft -= selectedA[c];
 
         // Difference for moving 'right' in parent B
         int differenceBRight = 0;
 
         for (Client c : routesB[startB])
-            differenceBRight += selectedA.contains(c);
+            differenceBRight += selectedA[c];
 
         for (Client c : routesB[(startB + numMovedRoutes) % nRoutesB])
-            differenceBRight -= selectedA.contains(c);
+            differenceBRight -= selectedA[c];
 
         int const bestDifference = std::min({differenceALeft,
                                              differenceARight,
@@ -317,45 +314,46 @@ std::pair<size_t, size_t> optimizeStartIndices_(Routes const &routesA,
         if (bestDifference == differenceALeft)
         {
             for (Client c : routesA[(startA + numMovedRoutes - 1) % nRoutesA])
-                selectedA.erase(c);
+                selectedA[c] = false;
 
             startA = (startA - 1 + nRoutesA) % nRoutesA;
-            selectedA.insert(routesA[startA].begin(), routesA[startA].end());
+            for (Client c : routesA[startA])
+                selectedA[c] = true;
         }
         else if (bestDifference == differenceARight)
         {
             for (Client c : routesA[startA])
-                selectedA.erase(c);
+                selectedA[c] = false;
 
             startA = (startA + 1) % nRoutesA;
-
             for (Client c : routesA[(startA + numMovedRoutes - 1) % nRoutesA])
-                selectedA.insert(c);
+                selectedA[c] = true;
         }
         else if (bestDifference == differenceBLeft)
         {
             for (Client c : routesB[(startB + numMovedRoutes - 1) % nRoutesB])
-                selectedB.erase(c);
+                selectedB[c] = false;
 
             startB = (startB - 1 + nRoutesB) % nRoutesB;
-            selectedB.insert(routesB[startB].begin(), routesB[startB].end());
+            for (Client c : routesB[startB])
+                selectedB[c] = true;
         }
         else if (bestDifference == differenceBRight)
         {
             for (Client c : routesB[startB])
-                selectedB.erase(c);
+                selectedB[c] = false;
 
             startB = (startB + 1) % nRoutesB;
             for (Client c : routesB[(startB + numMovedRoutes - 1) % nRoutesB])
-                selectedB.insert(c);
+                selectedB[c] = true;
         }
     }
     return std::make_pair(startA, startB);
 }
 
-Solution heterogeneousSelectiveRouteExchange(
-    std::pair<Solution const *, Solution const *> const &parents,
-    ProblemData const &data,
+pyvrp::Solution heterogeneousSelectiveRouteExchange(
+    std::pair<pyvrp::Solution const *, pyvrp::Solution const *> const &parents,
+    pyvrp::ProblemData const &data,
     CostEvaluator const &costEvaluator,
     std::vector<size_t> const startIndicesPerVehicleType,
     std::vector<size_t> const numMovedRoutesPerVehicleType)
@@ -368,8 +366,10 @@ Solution heterogeneousSelectiveRouteExchange(
     auto const routesB
         = sortByAscAngle(data, parents.second->getRoutes(), true);
 
-    ClientSet selectedA;
-    ClientSet selectedB;
+    DynamicBitset selectedA(data.numClients() + 1);
+    ;
+    DynamicBitset selectedB(data.numClients() + 1);
+    ;
     // // Vector to keep track of which routes to exchange, initialize at -1.
     std::vector<int> exchanges(routesA.size(), -1);
 
@@ -440,9 +440,9 @@ Solution heterogeneousSelectiveRouteExchange(
         data, routesA, routesB, costEvaluator, exchanges, selectedA, selectedB);
 }
 
-Solution selectiveRouteExchange(
-    std::pair<Solution const *, Solution const *> const &parents,
-    ProblemData const &data,
+pyvrp::Solution selectiveRouteExchange(
+    std::pair<pyvrp::Solution const *, pyvrp::Solution const *> const &parents,
+    pyvrp::ProblemData const &data,
     CostEvaluator const &costEvaluator,
     std::pair<size_t, size_t> const startIndices,
     size_t const numMovedRoutes)
@@ -457,8 +457,8 @@ Solution selectiveRouteExchange(
     auto const nRoutes = routesA.size();
     auto const nRoutesB = routesB.size();
 
-    ClientSet selectedA;
-    ClientSet selectedB;
+    DynamicBitset selectedA(data.numClients() + 1);
+    DynamicBitset selectedB(data.numClients() + 1);
     auto [startA, startB] = optimizeStartIndices_(routesA,
                                                   routesB,
                                                   startIndices.first,
@@ -475,11 +475,11 @@ Solution selectiveRouteExchange(
     return routeExchange_(data, routesA, routesB, costEvaluator, exchanges);
 }
 
-Solution
-routeExchange(std::pair<Solution const *, Solution const *> const &parents,
-              ProblemData const &data,
-              CostEvaluator const &costEvaluator,
-              std::vector<int> const &exchanges)
+pyvrp::Solution routeExchange(
+    std::pair<pyvrp::Solution const *, pyvrp::Solution const *> const &parents,
+    pyvrp::ProblemData const &data,
+    CostEvaluator const &costEvaluator,
+    std::vector<int> const &exchanges)
 {
     // Performs route exchange given an externally provided set of exchanges.
     // The vehicle type will not be considered in the exchange, and the
