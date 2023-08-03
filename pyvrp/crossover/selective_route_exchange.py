@@ -2,7 +2,12 @@ from typing import Tuple
 
 import numpy as np
 
-from pyvrp._pyvrp import CostEvaluator, ProblemData, Solution, XorShift128
+from pyvrp._pyvrp import (
+    CostEvaluator,
+    ProblemData,
+    RandomNumberGenerator,
+    Solution,
+)
 
 from ._crossover import (
     heterogeneous_selective_route_exchange as _heterogeneous_srex,
@@ -16,7 +21,7 @@ def selective_route_exchange(
     parents: Tuple[Solution, Solution],
     data: ProblemData,
     cost_evaluator: CostEvaluator,
-    rng: XorShift128,
+    rng: RandomNumberGenerator,
 ) -> Solution:
     """
     This crossover operator due to Nagata and Kobayashi (2010) combines routes
@@ -87,7 +92,7 @@ def heterogeneous_selective_route_exchange(
     parents: Tuple[Solution, Solution],
     data: ProblemData,
     cost_evaluator: CostEvaluator,
-    rng: XorShift128,
+    rng: RandomNumberGenerator,
 ) -> Solution:
     """
     SREX variant that handles heterogeneous vehicle types seperately. This
