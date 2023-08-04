@@ -1,6 +1,6 @@
 import itertools
 
-from numpy.testing import assert_equal, assert_raises
+from numpy.testing import assert_, assert_equal, assert_raises
 from pytest import mark
 
 from pyvrp import (
@@ -9,6 +9,9 @@ from pyvrp import (
     Route,
     Solution,
     VehicleType,
+)
+from pyvrp.crossover import (
+    heterogeneous_selective_route_exchange as heterogeneous_srex,
 )
 from pyvrp.crossover import selective_route_exchange as srex
 from pyvrp.crossover._crossover import (
@@ -425,3 +428,39 @@ def test_heterogeneous_srex_greedy_repair():
     )
     routes = offspring.get_routes()
     assert_equal(offspring, sol2)
+
+
+def test_heterogeneous_srex_single_route_exchange():
+    """
+    Tests the case where only for one vehicle type a single route can be
+    exchanged, which should happen in around 50% of the cases.
+    """
+    data = make_heterogeneous(
+        read("data/OkSmall.txt"),
+        [
+            VehicleType(10, 1),
+            VehicleType(20, 1),
+            VehicleType(15, 1),
+        ],
+    )
+    cost_evaluator = CostEvaluator(20, 6)
+    rng = RandomNumberGenerator(seed=42)
+
+    # We create the routes where vehicle type 0 is used in both solutions,
+    # vehicle type 2 only in solution 1 and vehicle type 2 only in solution 2
+    sol1 = Solution(data, [Route(data, [4], 0), Route(data, [1, 2, 3], 1)])
+    sol2 = Solution(data, [Route(data, [3], 0), Route(data, [1, 2, 4], 2)])
+
+    # Only the first route in the solutions can be exchanged, which should
+    # happen around 50% of the time.
+
+    # Best offspring solution should be where clients 3 and 4 are in route 1
+    # and clients 1 and 2 in route 2.
+    expected_exchanged = [Route(data, [3, 4], 0), Route(data, [1, 2], 1)]
+    count_exchanged = 0
+    for _ in range(100):
+        offspring = heterogeneous_srex((sol1, sol2), data, cost_evaluator, rng)
+        if offspring.get_routes() == expected_exchanged:
+            count_exchanged += 1
+
+    assert_(40 <= count_exchanged <= 60)

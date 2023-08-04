@@ -129,17 +129,21 @@ def heterogeneous_selective_route_exchange(
     """
     first, second = parents
     num_routes_1 = np.bincount(
-        (r.vehicle_type() for r in first.get_routes()),
+        [r.vehicle_type() for r in first.get_routes()],
         minlength=data.num_vehicle_types,
     )
     num_routes_2 = np.bincount(
-        (r.vehicle_type() for r in second.get_routes()),
+        [r.vehicle_type() for r in second.get_routes()],
         minlength=data.num_vehicle_types,
     )
     max_routes_to_move = np.minimum(num_routes_1, num_routes_2)
 
+    # Note: it is allowed to move 0 routes of one type, since in theory there
+    # can be only one vehicle of a type in which case we want the route for
+    # that type from either the one or the other parent.
+    # As such, it can happen that the offspring exchanges 0 routes.
     num_routes_to_move = [
-        0 if max_r == 0 else rng.randint(max_r) + 1
+        0 if max_r == 0 else rng.randint(max_r + 1)
         for max_r in max_routes_to_move
     ]
     start_indices = [
