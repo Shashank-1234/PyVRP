@@ -358,10 +358,8 @@ pyvrp::Solution pyvrp::crossover::heterogeneousSelectiveRouteExchange(
         = sortByAscAngle(data, parents.second->getRoutes(), true);
 
     pyvrp::DynamicBitset selectedA(data.numClients() + 1);
-    ;
     pyvrp::DynamicBitset selectedB(data.numClients() + 1);
-    ;
-    // // Vector to keep track of which routes to exchange, initialize at -1.
+    // Vector to keep track of which routes to exchange, initialize at -1.
     std::vector<int> exchanges(routesA.size(), -1);
 
     // SortByAscAngle first sorts by vehicle type, so we can loop over the
