@@ -143,8 +143,7 @@ def heterogeneous_selective_route_exchange(
     # that type from either the one or the other parent.
     # As such, it can happen that the offspring exchanges 0 routes.
     num_routes_to_move = [
-        0 if max_r == 0 else rng.randint(max_r + 1)
-        for max_r in max_routes_to_move
+        rng.randint(max_r + 1) for max_r in max_routes_to_move
     ]
     start_indices = [
         0 if num_r == 0 else rng.randint(num_r) for num_r in num_routes_1
