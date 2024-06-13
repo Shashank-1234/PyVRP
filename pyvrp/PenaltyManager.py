@@ -118,7 +118,6 @@ class PenaltyManager:
 
     MIN_PENALTY = 1
     MAX_PENALTY = 100_000
-    FEAS_TOL = 0.05
 
     def __init__(
         self,
@@ -188,14 +187,13 @@ class PenaltyManager:
         # and the percentage of feasible solutions since the last update.
         diff = self._params.target_feasible - feas_percentage
 
-        if abs(diff) < self.FEAS_TOL:
-            return penalty
-
-        # +/- 1 to ensure we do not get stuck at the same integer values.
+        # max/min +/- 1 so we do not get stuck at the same integer values.
         if diff > 0:
-            new_penalty = self._params.penalty_increase * penalty + 1
+            scalar = self._params.penalty_increase
+            new_penalty = max(scalar * penalty, penalty + 1)
         else:
-            new_penalty = self._params.penalty_decrease * penalty - 1
+            scalar = self._params.penalty_decrease
+            new_penalty = min(scalar * penalty, penalty - 1)
 
         clipped = int(np.clip(new_penalty, self.MIN_PENALTY, self.MAX_PENALTY))
 
