@@ -278,8 +278,15 @@ class _ProblemDataBuilder:
         depots = self._depots()
         vehicle_types = self._vehicle_types()
         distance_matrices = self._distance_matrices()
-        duration_matrices = self._duration_matrices()
+
+        # Check if the instance contains duration matrices; if not, fall back to distance matrices
+        if "duration" in self.parser.instance:
+            duration_matrices = self._duration_matrices()
+        else:
+            duration_matrices = distance_matrices  
+
         groups = self._groups()
+
 
         return ProblemData(
             clients=clients,
@@ -450,10 +457,6 @@ class _ProblemDataBuilder:
         """
         Handles duration matrices parsing separately from distance matrices.
         """
-        if "duration" in self.parser.instance:
-            durations = self.parser.instance["duration"]
-        else:
-            durations = self._distance_matrices()  # Fallback if no duration is provided
 
         allowed2profile = self._allowed2profile()
         num_profiles = len(allowed2profile)
