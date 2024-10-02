@@ -278,6 +278,7 @@ class _ProblemDataBuilder:
         depots = self._depots()
         vehicle_types = self._vehicle_types()
         distance_matrices = self._distance_matrices()
+        duration_matrices = self._duration_matrices()
         groups = self._groups()
 
         return ProblemData(
@@ -285,9 +286,7 @@ class _ProblemDataBuilder:
             depots=depots,
             vehicle_types=vehicle_types,
             distance_matrices=distance_matrices,
-            # VRPLIB instances typically do not have a duration data field, and
-            # instead assume duration == distance.
-            duration_matrices=distance_matrices,
+            duration_matrices=duration_matrices,
             groups=groups,
         )
 
@@ -446,6 +445,38 @@ class _ProblemDataBuilder:
             warn(msg, ScalingWarning)
 
         return dist_mats
+    
+    def _duration_matrices(self) -> list[np.ndarray]:
+        """
+        Handles duration matrices parsing separately from distance matrices.
+        """
+        if "duration" in self.parser.instance:
+            durations = self.parser.instance["duration"]
+        else:
+            durations = self._distance_matrices()  # Fallback if no duration is provided
+
+        allowed2profile = self._allowed2profile()
+        num_profiles = len(allowed2profile)
+        dur_mats = [durations.copy() for _ in range(num_profiles)]
+
+        for allowed_clients, type_idx in allowed2profile.items():
+            if len(allowed_clients) == self.parser.num_clients:
+                continue
+
+            num_depots = self.parser.num_depots
+            num_locations = self.parser.num_locations
+            allowed = np.zeros((num_locations,), dtype=bool)
+            allowed[:num_depots] = True
+            allowed[list(allowed_clients)] = True
+
+            dtype = np.promote_types(dur_mats[type_idx].dtype, np.int64)
+            dur_mats[type_idx] = dur_mats[type_idx].astype(dtype)
+
+            dur_mat = dur_mats[type_idx]
+            dur_mat[:, ~allowed] = dur_mat[~allowed, :] = MAX_VALUE
+            np.fill_diagonal(dur_mat, 0)
+
+        return dur_mats
 
     def _groups(self) -> list[ClientGroup]:
         groups = self.parser.mutually_exclusive_groups()
